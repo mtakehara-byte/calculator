@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>テープ付き電卓</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+/* Layout: desk calculator body beside a printed paper tape of past results; stacks on phones */
+:root {
+  --bg: #e7ebef;
+  --body: #f6f8fa;
+  --body-edge: #cdd4dc;
+  --key: #ffffff;
+  --key-fg: #1d2833;
+  --key-shadow: #c3cbd4;
+  --op: #dbe4ee;
+  --op-fg: #23476b;
+  --fn: #eceff3;
+  --eq: #2b5f8f;
+  --eq-fg: #ffffff;
+  --screen: #dfe7d8;
+  --screen-fg: #1f2a1c;
+  --screen-dim: #5d6b58;
+  --paper: #fbfbf8;
+  --paper-fg: #2a2f35;
+  --paper-dim: #7b848d;
+  --rule: #e3e6ea;
+  --danger: #b3342b;
+  --focus: #2b5f8f;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181d; --body: #1e242b; --body-edge: #2c343d; --key: #2a323b; --key-fg: #e6ebf0;
+    --key-shadow: #0d1013; --op: #26384b; --op-fg: #a9c8e8; --fn: #232a32; --eq: #4a86bf; --eq-fg: #0d1620;
+    --screen: #1b2419; --screen-fg: #c9e3bd; --screen-dim: #7f9a74; --paper: #21272e; --paper-fg: #dde3e9;
+    --paper-dim: #8a949e; --rule: #2e353d; --danger: #ef7d73; --focus: #8bb9e6; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181d; --body: #1e242b; --body-edge: #2c343d; --key: #2a323b; --key-fg: #e6ebf0;
+  --key-shadow: #0d1013; --op: #26384b; --op-fg: #a9c8e8; --fn: #232a32; --eq: #4a86bf; --eq-fg: #0d1620;
+  --screen: #1b2419; --screen-fg: #c9e3bd; --screen-dim: #7f9a74; --paper: #21272e; --paper-fg: #dde3e9;
+  --paper-dim: #8a949e; --rule: #2e353d; --danger: #ef7d73; --focus: #8bb9e6; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--key-fg);
+  font-family: var(--font-ui);
+  padding-block: 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: center;
+  align-items: flex-start;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* Calculator body */
+.calc {
+  flex: 0 1 360px;
+  min-width: 0;
+  background: var(--body);
+  border: 1px solid var(--body-edge);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 1px 0 var(--body-edge), 0 18px 40px -24px rgba(20, 30, 45, .45);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  letter-spacing: .12em;
+  color: var(--paper-dim);
+  padding: 0 4px;
+}
+.brand b { color: var(--key-fg); font-weight: 700; letter-spacing: .08em; }
+.screen {
+  background: var(--screen);
+  color: var(--screen-fg);
+  border-radius: 10px;
+  padding: 12px 14px 10px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.12);
+  font-family: var(--font-num);
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 112px;
+  justify-content: flex-end;
+}
+.expr {
+  font-size: 15px;
+  color: var(--screen-dim);
+  min-height: 1.3em;
+  overflow-wrap: anywhere;
+}
+.main {
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.main.small { font-size: 28px; }
+.main.tiny { font-size: 21px; }
+.main.error { color: var(--danger); font-family: var(--font-ui); font-size: 20px; }
+.preview { font-size: 14px; color: var(--screen-dim); min-height: 1.2em; }
+
+.keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.keys button {
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  height: 58px;
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-weight: 500;
+  background: var(--key);
+  color: var(--key-fg);
+  box-shadow: 0 3px 0 var(--key-shadow);
+  cursor: pointer;
+  transition: transform .06s, box-shadow .06s, filter .12s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.keys button:hover { filter: brightness(.97); }
+.keys button:active, .keys button.pressed { transform: translateY(3px); box-shadow: 0 0 0 var(--key-shadow); }
+.keys button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.keys .fn { background: var(--fn); font-family: var(--font-ui); font-size: 17px; }
+.keys .op { background: var(--op); color: var(--op-fg); font-size: 24px; }
+.keys .eq { background: var(--eq); color: var(--eq-fg); font-size: 26px; }
+.keys .zero { grid-column: span 2; text-align: left; padding-left: 26px; }
+.hint { font-size: 12px; color: var(--paper-dim); text-align: center; line-height: 1.6; }
+kbd { font-family: var(--font-num); font-size: 11px; padding: 0 4px; border: 1px solid var(--body-edge); border-radius: 4px; }
+
+/* Paper tape */
+.tape {
+  flex: 1 1 260px;
+  min-width: 0;
+  max-width: 360px;
+  background: var(--paper);
+  color: var(--paper-fg);
+  border-radius: 4px;
+  box-shadow: 0 10px 30px -20px rgba(20, 30, 45, .5);
+  display: flex;
+  flex-direction: column;
+  max-height: 560px;
+  position: relative;
+}
+.tape::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: -8px; height: 8px;
+  background: linear-gradient(-45deg, transparent 6px, var(--paper) 0) 0 0 / 12px 8px repeat-x,
+              linear-gradient(45deg, transparent 6px, var(--paper) 0) 0 0 / 12px 8px repeat-x;
+}
+.tape-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px 10px;
+  border-bottom: 1px dashed var(--rule);
+}
+.tape-head h2 { margin: 0; font-size: 13px; letter-spacing: .14em; font-weight: 700; }
+.tape-head button {
+  font-family: var(--font-ui); font-size: 12px;
+  background: none; border: 1px solid var(--rule); color: var(--paper-dim);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+.tape-head button:hover { color: var(--paper-fg); }
+.tape-head button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tape ol {
+  list-style: none; margin: 0; padding: 4px 0 12px;
+  overflow-y: auto; flex: 1;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+.tape li button {
+  display: block; width: 100%; text-align: right;
+  background: none; border: 0; color: inherit; font: inherit;
+  padding: 10px 16px; cursor: pointer;
+  border-bottom: 1px solid var(--rule);
+}
+.tape li button:hover { background: var(--rule); }
+.tape li button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.tape .t-expr { display: block; font-size: 13px; color: var(--paper-dim); overflow-wrap: anywhere; }
+.tape .t-res { display: block; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.tape .t-res::before { content: "= "; color: var(--paper-dim); font-weight: 400; }
+.empty { padding: 28px 16px; font-size: 13px; color: var(--paper-dim); line-height: 1.7; text-align: center; }
+
+@media (max-width: 420px) {
+  .calc { padding: 14px; }
+  .keys { gap: 8px; }
+  .keys button { height: 54px; }
+  .tape { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .keys button { transition: none; }
+}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <section class="calc" aria-label="電卓">
+    <div class="brand"><b>CALC-12</b><span>12桁精度</span></div>
+    <div class="screen" aria-live="polite">
+      <div class="expr" id="expr"></div>
+      <div class="main" id="main">0</div>
+      <div class="preview" id="preview"></div>
+    </div>
+    <div class="keys" id="keys">
+      <button class="fn" data-k="AC" id="k-ac">AC</button>
+      <button class="fn" data-k="BS" id="k-bs" aria-label="1文字消す">⌫</button>
+      <button class="fn" data-k="%" id="k-pct">%</button>
+      <button class="op" data-k="÷" id="k-div" aria-label="割る">÷</button>
+      <button data-k="7" id="k-7">7</button>
+      <button data-k="8" id="k-8">8</button>
+      <button data-k="9" id="k-9">9</button>
+      <button class="op" data-k="×" id="k-mul" aria-label="掛ける">×</button>
+      <button data-k="4" id="k-4">4</button>
+      <button data-k="5" id="k-5">5</button>
+      <button data-k="6" id="k-6">6</button>
+      <button class="op" data-k="−" id="k-sub" aria-label="引く">−</button>
+      <button data-k="1" id="k-1">1</button>
+      <button data-k="2" id="k-2">2</button>
+      <button data-k="3" id="k-3">3</button>
+      <button class="op" data-k="+" id="k-add" aria-label="足す">+</button>
+      <button class="fn" data-k="±" id="k-neg" aria-label="符号を反転">±</button>
+      <button data-k="0" id="k-0">0</button>
+      <button data-k="." id="k-dot" aria-label="小数点">.</button>
+      <button class="eq" data-k="=" id="k-eq" aria-label="計算する">=</button>
+    </div>
+    <p class="hint">キーボードでも操作できます：<kbd>0-9</kbd> <kbd>+ - * /</kbd> <kbd>Enter</kbd> <kbd>Backspace</kbd> <kbd>Esc</kbd></p>
+  </section>
+
+  <section class="tape" aria-label="計算の記録">
+    <div class="tape-head">
+      <h2>記録テープ</h2>
+      <button id="clear-tape" type="button">記録を消す</button>
+    </div>
+    <ol id="tape"></ol>
+  </section>
+</div>
+
+<script>
+(() => {
+  const MAX_DIGITS = 15;
+  const STORE = "calc12-tape";
+  let tokens = [];        // {t:'num', v:'12.5'} | {t:'op', v:'+'}
+  let justEvaluated = false;
+  let error = "";
+  let lastExpr = "";
+  let history = [];
+
+  try { history = JSON.parse(localStorage.getItem(STORE) || "[]"); if (!Array.isArray(history)) history = []; } catch (e) { history = []; }
+  const saveHistory = () => { try { localStorage.setItem(STORE, JSON.stringify(history.slice(0, 100))); } catch (e) {} };
+
+  const $ = id => document.getElementById(id);
+  const last = () => tokens[tokens.length - 1];
+
+  function round(n) { return parseFloat(n.toPrecision(12)); }
+  function numToStr(n) {
+    if (n === 0) return "0";
+    const a = Math.abs(n);
+    if (a >= 1e15 || a < 1e-9) return n.toExponential(8).replace(/\.?0+e/, "e");
+    return String(n);
+  }
+  function fmt(s) {
+    if (/e/i.test(s)) return s;
+    const neg = s.startsWith("-");
+    const body = neg ? s.slice(1) : s;
+    const [i, d] = body.split(".");
+    const grouped = i.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (neg ? "−" : "") + grouped + (d !== undefined ? "." + d : "");
+  }
+  const exprText = toks => toks.map(t => t.t === "num" ? fmt(t.v) : t.v).join(" ");
+
+  function evaluate(toks) {
+    const t = toks.slice();
+    if (t.length && t[t.length - 1].t === "op") t.pop();
+    if (!t.length) return 0;
+    // pass 1: × ÷
+    const stack = [parseFloat(t[0].v)];
+    const ops = [];
+    for (let i = 1; i < t.length; i += 2) {
+      const op = t[i].v, n = parseFloat(t[i + 1].v);
+      if (op === "×") stack[stack.length - 1] = stack[stack.length - 1] * n;
+      else if (op === "÷") {
+        if (n === 0) throw new Error("0で割ることはできません");
+        stack[stack.length - 1] = stack[stack.length - 1] / n;
+      } else { ops.push(op); stack.push(n); }
+    }
+    // pass 2: + −
+    let r = stack[0];
+    for (let i = 0; i < ops.length; i++) r = ops[i] === "+" ? r + stack[i + 1] : r - stack[i + 1];
+    if (!isFinite(r)) throw new Error("桁数が大きすぎます");
+    return round(r);
+  }
+
+  function digitCount(v) { return v.replace(/[^0-9]/g, "").length; }
+
+  function press(k) {
+    if (error && k !== "AC") { error = ""; tokens = []; }
+    const L = last();
+    if (/^\d$/.test(k)) {
+      if (justEvaluated) { tokens = []; justEvaluated = false; }
+      const l = last();
+      if (l && l.t === "num") {
+        if (/e/.test(l.v)) l.v = k;
+        else if (l.v === "0") l.v = k;
+        else if (l.v === "-0") l.v = "-" + k;
+        else if (digitCount(l.v) < MAX_DIGITS) l.v += k;
+      } else tokens.push({ t: "num", v: k });
+    } else if (k === ".") {
+      if (justEvaluated) { tokens = []; justEvaluated = false; }
+      const l = last();
+      if (l && l.t === "num") { if (!l.v.includes(".") && !/e/.test(l.v)) l.v += "."; }
+      else tokens.push({ t: "num", v: "0." });
+    } else if (["+", "−", "×", "÷"].includes(k)) {
+      justEvaluated = false;
+      if (!L) tokens.push({ t: "num", v: "0" });
+      if (last().t === "op") last().v = k;
+      else {
+        if (last().v.endsWith(".")) last().v = last().v.slice(0, -1);
+        tokens.push({ t: "op", v: k });
+      }
+    } else if (k === "±") {
+      if (L && L.t === "num") { L.v = L.v.startsWith("-") ? L.v.slice(1) : "-" + L.v; justEvaluated = false; }
+    } else if (k === "%") {
+      if (L && L.t === "num") { L.v = numToStr(round(parseFloat(L.v) / 100)); justEvaluated = false; }
+    } else if (k === "BS") {
+      if (justEvaluated) { tokens = []; justEvaluated = false; lastExpr = ""; }
+      else if (L) {
+        if (L.t === "op" || L.v.length <= 1 || /e/.test(L.v) || (L.v.length === 2 && L.v.startsWith("-"))) tokens.pop();
+        else L.v = L.v.slice(0, -1);
+      }
+    } else if (k === "AC") {
+      tokens = []; justEvaluated = false; error = ""; lastExpr = "";
+    } else if (k === "=") {
+      if (!L || justEvaluated) return render();
+      if (L.t === "op") tokens.pop();
+      const hasOp = tokens.some(t => t.t === "op");
+      try {
+        const r = evaluate(tokens);
+        const rs = numToStr(r);
+        lastExpr = exprText(tokens) + " =";
+        if (hasOp) {
+          history.unshift({ expr: exprText(tokens), res: rs });
+          saveHistory(); renderTape();
+        }
+        tokens = [{ t: "num", v: rs }];
+        justEvaluated = true;
+      } catch (e) {
+        lastExpr = exprText(tokens) + " =";
+        error = e.message; tokens = []; justEvaluated = false;
+      }
+    }
+    if (!justEvaluated) lastExpr = "";
+    render();
+  }
+
+  function render() {
+    const main = $("main"), expr = $("expr"), prev = $("preview");
+    main.className = "main";
+    if (error) {
+      expr.textContent = lastExpr;
+      main.textContent = error; main.classList.add("error");
+      prev.textContent = ""; return;
+    }
+    const L = last();
+    let mainText;
+    if (justEvaluated) {
+      expr.textContent = lastExpr;
+      mainText = fmt(tokens[0].v);
+      prev.textContent = "";
+    } else {
+      // expression line shows everything before the current entry
+      const head = L && L.t === "num" ? tokens.slice(0, -1) : tokens;
+      expr.textContent = exprText(head);
+      mainText = L && L.t === "num" ? fmt(L.v) : (L ? fmt(tokens[tokens.length - 2].v) : "0");
+      let p = "";
+      if (tokens.length >= 3) {
+        try { p = "= " + fmt(numToStr(evaluate(tokens))); } catch (e) { p = ""; }
+      }
+      prev.textContent = p;
+    }
+    main.textContent = mainText;
+    if (mainText.length > 16) main.classList.add("tiny");
+    else if (mainText.length > 11) main.classList.add("small");
+  }
+
+  function renderTape() {
+    const ol = $("tape");
+    ol.innerHTML = "";
+    if (!history.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "計算すると、ここに式と答えが記録されます。記録をタップすると、その答えを電卓に呼び出せます。";
+      ol.appendChild(li); return;
+    }
+    history.forEach(h => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.title = "この答えを使う";
+      const e = document.createElement("span"); e.className = "t-expr"; e.textContent = h.expr;
+      const r = document.createElement("span"); r.className = "t-res"; r.textContent = fmt(h.res);
+      b.append(e, r);
+      b.addEventListener("click", () => {
+        error = "";
+        if (justEvaluated || !tokens.length) { tokens = [{ t: "num", v: h.res }]; justEvaluated = false; }
+        else if (last().t === "op") tokens.push({ t: "num", v: h.res });
+        else last().v = h.res;
+        lastExpr = ""; render();
+      });
+      li.appendChild(b); ol.appendChild(li);
+    });
+  }
+
+  $("keys").addEventListener("click", e => {
+    const b = e.target.closest("button[data-k]");
+    if (b) press(b.dataset.k);
+  });
+  $("clear-tape").addEventListener("click", () => { history = []; saveHistory(); renderTape(); });
+
+  const keyMap = { "+": "+", "-": "−", "*": "×", "x": "×", "/": "÷", "Enter": "=", "=": "=", "Backspace": "BS", "Delete": "AC", "Escape": "AC", ".": ".", ",": ".", "%": "%" };
+  document.addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    let k = /^\d$/.test(e.key) ? e.key : keyMap[e.key];
+    if (!k) return;
+    if (e.key === "Enter" && e.target.closest && e.target.closest("button:not([data-k])")) return;
+    e.preventDefault();
+    press(k);
+    const btn = document.querySelector(`.keys button[data-k="${CSS.escape(k)}"]`);
+    if (btn) { btn.classList.add("pressed"); setTimeout(() => btn.classList.remove("pressed"), 90); }
+  });
+
+  render();
+  renderTape();
+})();
+</script>
+</body>
+</html>
